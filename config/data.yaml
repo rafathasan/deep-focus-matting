@@ -1,0 +1,14 @@
+root: data
+data:
+  alphamatting:
+    url: https://www.dropbox.com/s/ynkfphdk9mwmp1s/alphamatting.zip?dl=1
+    checksum: 7ff7496d3a66c2c74de8e8bf62fff8b2
+    filename: alphamatting.zip
+    dir: alphamatting
+    trimap: True
+  matting:
+    url: https://www.dropbox.com/s/ynkfphdk9mwmp1s/alphamatting.zip?dl=1
+    checksum: 7ff7496d3a66c2c74de8e8bf62fff8b2
+    filename: matting.zip
+    dir: matting
+    trimap: True
