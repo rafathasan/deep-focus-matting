@@ -1,100 +1,18 @@
-import pytorch_lightning
+"""
+Bridging Composite and Real: Towards End-to-end Deep Image Matting [IJCV-2021]
+Main network file (GFM).
+
+Copyright (c) 2021, Jizhizi Li (jili8515@uni.sydney.edu.au)
+Licensed under the MIT License (see LICENSE for details)
+Github repo: https://github.com/JizhiziLi/GFM
+Paper link (Arxiv): https://arxiv.org/abs/2010.16188
+
+"""
+
 import torch
 import torch.nn as nn
 from torchvision import models
 import torch.nn.functional as F
-import torch.optim as optim
-from networks.gfm_util import *
-
-def create_optimizers(self):
-    optimizer = torch.optim.Adam(
-            self.parameters(),
-            lr=self.learning_rate,
-        )
-    lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer,
-            factor=self.lr_sc_factor,
-            patience=self.lr_sc_patience,
-            verbose=True,
-        )
-    return {
-        "optimizer": optimizer,
-        "lr_scheduler": lr_scheduler,
-        "monitor": "val_loss",
-    }
-
-
-class GFM(pytorch_lightning.LightningModule):
-    def __init__(
-        self,
-        learning_rate: float,
-        lr_sc_factor: float,
-        lr_sc_patience: float,
-    ):
-        super(GFM, self).__init__()
-        self.net = _GFM(backbone='r34', rosta='TT')
-        self.learning_rate = learning_rate
-        self.lr_sc_factor = lr_sc_factor
-        self.lr_sc_patience = lr_sc_patience
-
-    def forward(self, x):
-        return self.net(x)
-
-    def training_step(self, batch, batch_idx):
-        image, mask, trimap, fg, bg = batch
-        image = image.float()
-        mask = mask.float()
-        trimap = trimap.float()
-        fg = fg.float()
-        bg = bg.float()
-
-        predict_global, predict_local, predict_fusion = self(image)
-        # loss = F.mse_loss(predict, mask)
-
-        loss_global = get_crossentropy_loss(3, trimap, predict_global)
-        loss_local = get_alpha_loss(predict_local, mask, trimap) + get_laplacian_loss(predict_local, mask, trimap)
-
-        loss_fusion_alpha = get_alpha_loss_whole_img(predict_fusion, mask) + get_laplacian_loss_whole_img(predict_fusion, mask)
-        loss_fusion_comp = get_composition_loss_whole_img(image, mask, fg, bg, predict_fusion)
-        loss = 0.25*loss_global+0.25*loss_local+0.25*loss_fusion_alpha+0.25*loss_fusion_comp
-
-        return {
-            "loss": loss,
-        }
-
-    def training_epoch_end(self, outputs):
-        train_loss = torch.Tensor([output["loss"] for output in outputs]).mean()
-        self.log("train_loss", train_loss, prog_bar=True)
-
-    def validation_step(self, batch, batch_idx):
-        with torch.no_grad():
-            image, mask, trimap, fg, bg = batch
-            image = image.float()
-            mask = mask.float()
-            trimap = trimap.float()
-            fg = fg.float()
-            bg = bg.float()
-
-            predict_global, predict_local, predict_fusion = self(image)
-            # loss = F.mse_loss(predict, mask)
-
-            loss_global = get_crossentropy_loss(3, trimap, predict_global)
-            loss_local = get_alpha_loss(predict_local, mask, trimap) + get_laplacian_loss(predict_local, mask, trimap)
-
-            loss_fusion_alpha = get_alpha_loss_whole_img(predict_fusion, mask) + get_laplacian_loss_whole_img(predict_fusion, mask)
-            loss_fusion_comp = get_composition_loss_whole_img(image, mask, fg, bg, predict_fusion)
-            loss = 0.25*loss_global+0.25*loss_local+0.25*loss_fusion_alpha+0.25*loss_fusion_comp
-
-        return {
-            "vloss": loss,
-        }
-
-    def validation_epoch_end(self, outputs):
-        val_loss = torch.Tensor([output["vloss"] for output in outputs]).mean()
-        self.log("val_loss", val_loss, prog_bar=True)
-
-    def configure_optimizers(self):
-        return create_optimizers(self)
 
 def collaborative_matting(rosta, glance_sigmoid, focus_sigmoid):
 	if rosta =='TT':
@@ -198,7 +116,7 @@ def build_decoder(in_channels, mid_channels_1, mid_channels_2, out_channels, las
     sequential = nn.Sequential(*layers)
     return sequential
 
-class BasicBlock(pytorch_lightning.LightningModule):
+class BasicBlock(nn.Module):
     expansion = 1
 
     def __init__(self, inplanes, planes, stride=1, downsample=None):
@@ -225,7 +143,7 @@ class BasicBlock(pytorch_lightning.LightningModule):
 
         return out
 
-class PSPModule(pytorch_lightning.LightningModule):
+class PSPModule(nn.Module):
     def __init__(self, features, out_features=1024, sizes=(1, 2, 3, 6)):
         super().__init__()
         self.stages = []
@@ -244,7 +162,7 @@ class PSPModule(pytorch_lightning.LightningModule):
         bottle = self.bottleneck(torch.cat(priors, 1))
         return self.relu(bottle)
 
-class SELayer(pytorch_lightning.LightningModule):
+class SELayer(nn.Module):
     def __init__(self, channel, reduction=4):
         super(SELayer, self).__init__()
         self.avg_pool = nn.AdaptiveAvgPool2d(1)
@@ -261,7 +179,7 @@ class SELayer(pytorch_lightning.LightningModule):
         y = self.fc(y).view(b, c, 1, 1)
         return x * y.expand_as(x)
 
-class _GFM(pytorch_lightning.LightningModule):
+class GFM(nn.Module):
 
     def __init__(self, backbone, rosta):
         super().__init__()
@@ -487,10 +405,16 @@ class _GFM(pytorch_lightning.LightningModule):
         ### Encoder part 
         #################
         e0 = self.encoder0(input)
+        print(e0.shape)
         e1 = self.encoder1(e0)
+        print(e1.shape)
         e2 = self.encoder2(e1)
+        print(e2.shape)
         e3 = self.encoder3(e2)
+        print(e3.shape)
         e4 = self.encoder4(e3)
+        print(e4.shape)
+        print("--------------------")
 
         ##########################
         ### Decoder part - GLANCE
@@ -583,3 +507,5 @@ class _GFM(pytorch_lightning.LightningModule):
         else:
             fusion_sigmoid = collaborative_matting(self.rosta, glance_sigmoid, focus_sigmoid)
             return glance_sigmoid, focus_sigmoid, fusion_sigmoid
+
+        

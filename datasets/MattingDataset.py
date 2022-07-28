@@ -21,6 +21,8 @@ def create_train_transform(height: int = 224, width: int = 224):
             "image": "image",
             "mask": "image",
             "trimap": "image",
+            "fg": "image",
+            "bg": "image",
         },
     )
 
@@ -34,6 +36,8 @@ def create_test_transform(height: int = 224, width: int = 224):
             "image": "image",
             "mask": "image",
             "trimap": "image",
+            "fg": "image",
+            "bg": "image",
         },
     )
 
@@ -76,16 +80,21 @@ class MattingDataset(Dataset):
         trimap_path = self.annotations_df.iloc[index, 2]
 
         image_b = Image.open(image_path)
-        mask_b = Image.open(mask_path)
-        trimap_b = Image.open(trimap_path)
+        mask_b = Image.open(mask_path).convert("L")
+        trimap_b = Image.open(trimap_path).convert("L")
 
         image = numpy.array(image_b)
         mask = numpy.array(mask_b)
         trimap = numpy.array(trimap_b)
 
-        transformed = self.transform(image=image, mask=mask, trimap=trimap)
+        fg = image*(mask.copy()[:, :, numpy.newaxis])
+        bg = image*(1-(mask.copy()[:, :, numpy.newaxis]))
+
+        transformed = self.transform(image=image, mask=mask, trimap=trimap, fg=fg, bg=bg)
         image = transformed["image"]
         mask = transformed["mask"]
         trimap = transformed["trimap"]
+        fg = transformed["fg"]
+        bg = transformed["bg"]
 
-        return image, mask, trimap
+        return image, mask, trimap, fg, bg

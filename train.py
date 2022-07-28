@@ -3,6 +3,8 @@ import torch
 from pytorch_lightning import LightningModule, Trainer
 from networks.UNet import UNet
 from networks.MODNet import MODNet
+from networks.GFM import GFM
+from networks.DFM import DFM
 from datasets.MattingDataModule import MattingDataModule
 from pytorch_lightning.callbacks import (
     ModelCheckpoint,
@@ -88,6 +90,10 @@ if __name__ == "__main__":
         network = MODNet(args.learning_rate,args.lr_scheduler_factor, args.lr_scheduler_patience)
     elif model_type == "UNet":
         network = UNet(args.learning_rate,args.lr_scheduler_factor, args.lr_scheduler_patience)
+    elif model_type == "GFM":
+        network = GFM(args.learning_rate,args.lr_scheduler_factor, args.lr_scheduler_patience)
+    elif model_type == "DFM":
+        network = DFM(args.learning_rate,args.lr_scheduler_factor, args.lr_scheduler_patience)
     else:
         raise Exception("model_type not given")
 
@@ -118,8 +124,9 @@ if __name__ == "__main__":
 
     trainer = Trainer(
         logger=logger,
-        # gpus=torch.cuda.device_count(),
+        gpus=torch.cuda.device_count(),
         # strategy=DDPPlugin(find_unused_parameters=False),
+        strategy=DDPPlugin(),
         callbacks=callbacks,
         max_epochs=args.epochs,
         # auto_lr_find=True,

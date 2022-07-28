@@ -1,0 +1,1 @@
+python train.py --model-type=GFM --dataset-name=AMD --gpu-indices=6,7 --num-workers=4 --epochs=20 --learning-rate=1e-1 --lr-scheduler-factor=0.1 --lr-scheduler-patience=10
