@@ -85,7 +85,11 @@ if __name__ == "__main__":
     resume_from_checkpoint  = args.resume_from_checkpoint
 
 
-    # Network 
+    """_network_
+
+    Raises:
+        Exception
+    """
     if model_type == "MODNet":
         network = MODNet(args.learning_rate,args.lr_scheduler_factor, args.lr_scheduler_patience)
     elif model_type == "UNet":
@@ -97,16 +101,19 @@ if __name__ == "__main__":
     else:
         raise Exception("model_type not given")
 
-    # Dataset
+    """_dataset_
+    """
     data_module = MattingDataModule()
 
     data_module.prepare_data()
 
     from pytorch_lightning.loggers import TensorBoardLogger
+    from pytorch_lightning.loggers import WandbLogger
 
     experiment_name = f"{args.model_type}_{args.dataset_name}"
     version_name = f"epochs:{args.epochs}_lr:{args.learning_rate}_factor:{args.lr_scheduler_factor}_patience:{args.lr_scheduler_patience}"
-    logger = TensorBoardLogger(args.log_folder, name=experiment_name, version=version_name)
+    tensorboard_logger = TensorBoardLogger(args.log_folder, name=experiment_name, version=version_name)
+    wandb_logger = WandbLogger(project=experiment_name)
 
     checkpoint_path = os.path.join(args.log_folder, experiment_name, version_name, "checkpoints")
 
@@ -114,16 +121,17 @@ if __name__ == "__main__":
         ModelCheckpoint(
             dirpath=checkpoint_path,
             every_n_epochs=1,
-            monitor="train_loss",
+            monitor="mse_validation",
             save_last=True,
         ),
     ]
 
+    checkpoint_file = os.path.join(checkpoint_path,"last.ckpt")
 
     from pytorch_lightning.plugins import DDPPlugin
 
     trainer = Trainer(
-        logger=logger,
+        logger=tensorboard_logger,
         gpus=torch.cuda.device_count(),
         # strategy=DDPPlugin(find_unused_parameters=False),
         strategy=DDPPlugin(),
@@ -133,6 +141,7 @@ if __name__ == "__main__":
         # auto_scale_batch_size=True,
         # overfit_batches=10,
         # fast_dev_run=1,
+        # resume_from_checkpoint=checkpoint_file,
     )
 
     # trainer.tune(network, datamodule=data_module)

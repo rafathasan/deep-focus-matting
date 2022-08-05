@@ -4,6 +4,7 @@ try: # for torchvision<0.4
 except: # for torchvision>=0.4
     from torch.hub import load_state_dict_from_url
 import torch.nn.functional as F
+import pytorch_lightning
 
 __all__ = ['MobileNetV2', 'mobilenet_v2']
 
@@ -49,7 +50,7 @@ def fixed_padding(kernel_size, dilation):
     pad_end = pad_total - pad_beg
     return (pad_beg, pad_end, pad_beg, pad_end) 
 
-class InvertedResidual(nn.Module):
+class InvertedResidual(pytorch_lightning.LightningModule):
     def __init__(self, inp, oup, stride, dilation, expand_ratio):
         super(InvertedResidual, self).__init__()
         self.stride = stride
@@ -81,7 +82,7 @@ class InvertedResidual(nn.Module):
         else:
             return self.conv(x_pad)
 
-class MobileNetV2(nn.Module):
+class MobileNetV2(pytorch_lightning.LightningModule):
     def __init__(self, num_classes=1000, output_stride=8, width_mult=1.0, inverted_residual_setting=None, round_nearest=8):
         """
         MobileNet V2 main class

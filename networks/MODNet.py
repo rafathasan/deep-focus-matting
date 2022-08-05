@@ -347,7 +347,7 @@ class MODNet(pytorch_lightning.LightningModule):
         return self.net(x, False)
 
     def training_step(self, batch, batch_idx):
-        image, mask, trimap = batch
+        image, mask, trimap, fg, bg = batch
         image=image.float()
         mask=mask.float()
         trimap=trimap.float()
@@ -394,7 +394,7 @@ class MODNet(pytorch_lightning.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         with torch.no_grad():
-            image, mask, trimap = batch
+            image, mask, trimap, fg, bg = batch
             image=image.float()
             mask=mask.float()
             trimap=trimap.float()

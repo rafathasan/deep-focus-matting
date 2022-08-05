@@ -1,5 +1,5 @@
 """ This file is adapted from https://github.com/thuyngch/Human-Segmentation-PyTorch"""
-
+import pytorch_lightning
 import math
 import json
 from functools import reduce
@@ -42,7 +42,7 @@ def conv_1x1_bn(inp, oup):
 #  Class of Inverted Residual block
 #------------------------------------------------------------------------------
 
-class InvertedResidual(nn.Module):
+class InvertedResidual(pytorch_lightning.LightningModule):
 	def __init__(self, inp, oup, stride, expansion, dilation=1):
 		super(InvertedResidual, self).__init__()
 		self.stride = stride
@@ -87,7 +87,7 @@ class InvertedResidual(nn.Module):
 #  Class of MobileNetV2
 #------------------------------------------------------------------------------
 
-class MobileNetV2(nn.Module):
+class MobileNetV2(pytorch_lightning.LightningModule):
 	def __init__(self, in_channels, alpha=1.0, expansion=6, num_classes=1000):
 		super(MobileNetV2, self).__init__()
 		self.in_channels = in_channels

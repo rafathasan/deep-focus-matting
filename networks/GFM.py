@@ -58,13 +58,18 @@ class GFM(pytorch_lightning.LightningModule):
         loss_fusion_comp = get_composition_loss_whole_img(image, mask, fg, bg, predict_fusion)
         loss = 0.25*loss_global+0.25*loss_local+0.25*loss_fusion_alpha+0.25*loss_fusion_comp
 
+        mse = F.mse_loss(predict_fusion, mask)
+
         return {
             "loss": loss,
+            "mse": mse,
         }
 
     def training_epoch_end(self, outputs):
         train_loss = torch.Tensor([output["loss"] for output in outputs]).mean()
+        mse_loss = torch.Tensor([output["mse"] for output in outputs]).mean()
         self.log("train_loss", train_loss, prog_bar=True)
+        self.log("mse_loss", mse_loss, prog_bar=True)
 
     def validation_step(self, batch, batch_idx):
         with torch.no_grad():
@@ -85,13 +90,18 @@ class GFM(pytorch_lightning.LightningModule):
             loss_fusion_comp = get_composition_loss_whole_img(image, mask, fg, bg, predict_fusion)
             loss = 0.25*loss_global+0.25*loss_local+0.25*loss_fusion_alpha+0.25*loss_fusion_comp
 
+            mse = F.mse_loss(predict_fusion, mask)
+
         return {
             "vloss": loss,
+            "vmse": mse,
         }
 
     def validation_epoch_end(self, outputs):
         val_loss = torch.Tensor([output["vloss"] for output in outputs]).mean()
+        eval_mse_loss = torch.Tensor([output["vmse"] for output in outputs]).mean()
         self.log("val_loss", val_loss, prog_bar=True)
+        self.log("eval_mse_loss", eval_mse_loss, prog_bar=True)
 
     def configure_optimizers(self):
         return create_optimizers(self)

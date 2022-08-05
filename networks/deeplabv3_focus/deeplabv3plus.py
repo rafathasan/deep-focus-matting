@@ -2,6 +2,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 from torchvision import models
+import pytorch_lightning
 
 def collaborative_matting_(glance_sigmoid, focus_sigmoid):
     values, index = torch.max(glance_sigmoid,1)
@@ -105,7 +106,7 @@ def build_decoder(in_channels, mid_channels_1, mid_channels_2, out_channels, las
     sequential = nn.Sequential(*layers)
     return sequential
 
-class BasicBlock(nn.Module):
+class BasicBlock(pytorch_lightning.LightningModule):
     expansion = 1
 
     def __init__(self, inplanes, planes, stride=1, downsample=None):
@@ -132,7 +133,7 @@ class BasicBlock(nn.Module):
 
         return out
 
-class PSPModule(nn.Module):
+class PSPModule(pytorch_lightning.LightningModule):
     def __init__(self, features, out_features=1024, sizes=(1, 2, 3, 6)):
         super().__init__()
         self.stages = []
@@ -151,7 +152,7 @@ class PSPModule(nn.Module):
         bottle = self.bottleneck(torch.cat(priors, 1))
         return self.relu(bottle)
 
-class SELayer(nn.Module):
+class SELayer(pytorch_lightning.LightningModule):
     def __init__(self, channel, reduction=4):
         super(SELayer, self).__init__()
         self.avg_pool = nn.AdaptiveAvgPool2d(1)
@@ -168,7 +169,7 @@ class SELayer(nn.Module):
         y = self.fc(y).view(b, c, 1, 1)
         return x * y.expand_as(x)
 
-class DeepLabV3Plus(nn.Module):
+class DeepLabV3Plus(pytorch_lightning.LightningModule):
     def __init__(self, num_classes, aspp_dilate=[12, 24, 36]):
         super(DeepLabV3Plus, self).__init__()
         self.project = nn.Sequential( 
@@ -257,7 +258,7 @@ class DeepLabV3Plus(nn.Module):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
 
-class AtrousSeparableConvolution(nn.Module):
+class AtrousSeparableConvolution(pytorch_lightning.LightningModule):
     """ Atrous Separable Convolution
     """
     def __init__(self, in_channels, out_channels, kernel_size,
@@ -305,7 +306,7 @@ class ASPPPooling(nn.Sequential):
         x = super(ASPPPooling, self).forward(x)
         return F.interpolate(x, size=size, mode='bilinear', align_corners=False)
 
-class ASPP(nn.Module):
+class ASPP(pytorch_lightning.LightningModule):
     def __init__(self, in_channels, atrous_rates):
         super(ASPP, self).__init__()
         out_channels = 256

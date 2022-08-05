@@ -2,7 +2,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 import os
-
+import pytorch_lightning
 __all__ = ['HRNet', 'hrnetv2_48', 'hrnetv2_32']
 
 # Checkpoint path of pre-trained backbone (edit to your path). Download backbone pretrained model hrnetv2-32 @
@@ -16,7 +16,7 @@ except:
 
 # HRNetv2-48 not available yet, but you can train the whole model from scratch.
 
-class Bottleneck(nn.Module):
+class Bottleneck(pytorch_lightning.LightningModule):
     expansion = 4
 
     def __init__(self, inplanes, planes, stride=1, downsample=None):
@@ -51,7 +51,7 @@ class Bottleneck(nn.Module):
         return out
 
 
-class BasicBlock(nn.Module):
+class BasicBlock(pytorch_lightning.LightningModule):
     expansion = 1
 
     def __init__(self, inplanes, planes, stride=1, downsample=None):
@@ -81,7 +81,7 @@ class BasicBlock(nn.Module):
         return out
 
 
-class StageModule(nn.Module):
+class StageModule(pytorch_lightning.LightningModule):
     def __init__(self, stage, output_branches, c):
         super(StageModule, self).__init__()
 
@@ -161,7 +161,7 @@ class StageModule(nn.Module):
         return x_fused  # returning a list of fused outputs
 
 
-class HRNet(nn.Module):
+class HRNet(pytorch_lightning.LightningModule):
     def __init__(self, c=48, num_blocks=[1, 4, 3], num_classes=1000):
         super(HRNet, self).__init__()
 

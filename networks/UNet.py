@@ -39,7 +39,7 @@ class UNet(pytorch_lightning.LightningModule):
         return self.net(x)
 
     def training_step(self, batch, batch_idx):
-        image, mask, _ = batch
+        image, mask, trimap, fg, bg = batch
         image = image/255
         mask = mask/255
         predict = torch.sigmoid(self(image))
@@ -55,7 +55,7 @@ class UNet(pytorch_lightning.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         with torch.no_grad():
-            image, mask, _ = batch
+            image, mask, trimap, fg, bg = batch
             image = image/255
             mask = mask/255
             predict = torch.sigmoid(self(image))

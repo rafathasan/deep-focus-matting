@@ -3,7 +3,7 @@ from torch import nn
 from torch.nn import functional as F
 from torchvision import models
 from .utils import _SimpleSegmentationModel
-
+import pytorch_lightning
 
 __all__ = ["DeepLabV3"]
 
@@ -47,17 +47,17 @@ class DeepLabV3(_SimpleSegmentationModel):
     <https://arxiv.org/abs/1706.05587>`_.
 
     Arguments:
-        backbone (nn.Module): the network used to compute the features for the model.
+        backbone (pytorch_lightning.LightningModule): the network used to compute the features for the model.
             The backbone should return an OrderedDict[Tensor], with the key being
             "out" for the last feature map used, and "aux" if an auxiliary classifier
             is used.
-        classifier (nn.Module): module that takes the "out" element returned from
+        classifier (pytorch_lightning.LightningModule): module that takes the "out" element returned from
             the backbone and returns a dense prediction.
         aux_classifier (nn.Module, optional): auxiliary classifier used during training
     """
     pass
 
-class DeepLabV3Plus(nn.Module):
+class DeepLabV3Plus(pytorch_lightning.LightningModule):
     def __init__(self, in_channels, low_level_channels, num_classes, aspp_dilate=[12, 24, 36]):
         super(DeepLabV3Plus, self).__init__()
         self.project = nn.Sequential( 
@@ -148,7 +148,7 @@ class DeepLabV3Plus(nn.Module):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
 
-class DeepLabHeadV3Plus(nn.Module):
+class DeepLabHeadV3Plus(pytorch_lightning.LightningModule):
     def __init__(self, in_channels, low_level_channels, num_classes, aspp_dilate=[12, 24, 36]):
         super(DeepLabHeadV3Plus, self).__init__()
         self.project = nn.Sequential( 
@@ -246,7 +246,7 @@ class DeepLabHeadV3Plus(nn.Module):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
 
-class DeepLabHead(nn.Module):
+class DeepLabHead(pytorch_lightning.LightningModule):
     def __init__(self, in_channels, num_classes, aspp_dilate=[12, 24, 36]):
         super(DeepLabHead, self).__init__()
 
@@ -270,7 +270,7 @@ class DeepLabHead(nn.Module):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
 
-class AtrousSeparableConvolution(nn.Module):
+class AtrousSeparableConvolution(pytorch_lightning.LightningModule):
     """ Atrous Separable Convolution
     """
     def __init__(self, in_channels, out_channels, kernel_size,
@@ -318,7 +318,7 @@ class ASPPPooling(nn.Sequential):
         x = super(ASPPPooling, self).forward(x)
         return F.interpolate(x, size=size, mode='bilinear', align_corners=False)
 
-class ASPP(nn.Module):
+class ASPP(pytorch_lightning.LightningModule):
     def __init__(self, in_channels, atrous_rates):
         super(ASPP, self).__init__()
         out_channels = 256

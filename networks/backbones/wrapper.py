@@ -1,13 +1,13 @@
 import os
 from functools import reduce
-
+import pytorch_lightning
 import torch
 import torch.nn as nn
 
 from .mobilenetv2 import MobileNetV2
 
 
-class BaseBackbone(nn.Module):
+class BaseBackbone(pytorch_lightning.LightningModule):
     """ Superclass of Replaceable Backbone Model for Semantic Estimation
     """
 

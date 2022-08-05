@@ -3,6 +3,7 @@ import torch.nn as nn
 import numpy as np
 import torch.nn.functional as F
 from collections import OrderedDict
+import pytorch_lightning
 
 def collaborative_matting_(glance_sigmoid, focus_sigmoid):
     values, index = torch.max(glance_sigmoid,1)
@@ -27,7 +28,7 @@ def collaborative_matting_(glance_sigmoid, focus_sigmoid):
     fusion_sigmoid = fusion_sigmoid.cuda()
     return fusion_sigmoid
 
-class _SimpleSegmentationModel(nn.Module):
+class _SimpleSegmentationModel(pytorch_lightning.LightningModule):
     def __init__(self, backbone, classifier):
         super(_SimpleSegmentationModel, self).__init__()
         self.backbone = backbone
@@ -58,7 +59,7 @@ class IntermediateLayerGetter(nn.ModuleDict):
     be returned, but not `model.feature1.layer2`.
 
     Arguments:
-        model (nn.Module): model on which we will extract the features
+        model (pytorch_lightning.LightningModule): model on which we will extract the features
         return_layers (Dict[name, new_name]): a dict containing the names
             of the modules for which the activations will be returned as
             the key of the dict, and the value of the dict is the name

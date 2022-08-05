@@ -13,7 +13,7 @@ from sklearn.model_selection import train_test_split
 class MattingDataModule(pytorch_lightning.LightningDataModule):
     def __init__(
         self,
-        batch_size: int = 32,
+        batch_size: int = 4,
         num_workers: int = 4,
     ):
         self.batch_size = batch_size
@@ -37,7 +37,7 @@ class MattingDataModule(pytorch_lightning.LightningDataModule):
             self.train_data,
             batch_size=self.batch_size,
             num_workers=self.num_workers,
-            shuffle=True,
+            shuffle=False,
         )
 
     def val_dataloader(self):
