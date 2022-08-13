@@ -10,6 +10,124 @@ import numpy as np
 
 from .backbones import SUPPORTED_BACKBONES
 
+from networks.Wrapper import LightningWrapper
+
+class MODNet(LightningWrapper):
+    def __init__(
+        self,
+        settings = None
+        ):
+        super().__init__(settings)
+        self.net = _MODNet(backbone_pretrained=False)
+        self.blurer = _GaussianBlurLayer(1, 3)
+
+    def forward(self, x):
+        return self.net(x, False)
+
+    def training_step(self, batch, batch_idx):
+        image, mask, trimap, fg, bg = batch
+        image = image/255
+        mask = mask/255
+        trimap = trimap/255
+        fg = fg/255
+        bg = bg/255
+
+        pred_semantic, pred_detail, pred_matte = self(image)
+        
+        # calculate the boundary mask from the trimap
+        boundaries = (trimap < 0.5) + (trimap > 0.5)
+        semantic_scale=10.0
+        detail_scale=10.0
+        matte_scale=1.0
+
+        # calculate the semantic loss
+        gt_semantic = F.interpolate(mask, scale_factor=1/16, mode='bilinear', align_corners=False)
+        gt_semantic = self.blurer(gt_semantic)
+        semantic_loss = torch.mean(F.mse_loss(pred_semantic, gt_semantic))
+        semantic_loss = semantic_scale * semantic_loss
+
+        # calculate the detail loss
+        pred_boundary_detail = torch.where(boundaries, trimap, pred_detail)
+        gt_detail = torch.where(boundaries, trimap, mask)
+        detail_loss = torch.mean(F.l1_loss(pred_boundary_detail, gt_detail))
+        detail_loss = detail_scale * detail_loss
+
+        # calculate the matte loss
+        pred_boundary_matte = torch.where(boundaries, trimap, pred_matte)
+        matte_l1_loss = F.l1_loss(pred_matte, mask) + 4.0 * F.l1_loss(pred_boundary_matte, mask)
+        matte_compositional_loss = F.l1_loss(image * pred_matte, image * mask) \
+            + 4.0 * F.l1_loss(image * pred_boundary_matte, image * mask)
+        matte_loss = torch.mean(matte_l1_loss + matte_compositional_loss)
+        matte_loss = matte_scale * matte_loss
+
+        # calculate the final loss
+        loss = semantic_loss + detail_loss + matte_loss
+
+        mask = mask*255
+        
+        if batch_idx == 0:
+            self.log_image(title="training_images", predict=pred_matte, mask=mask)
+
+        return {
+            "loss": loss,
+            "l1loss": self.l1loss(predict=pred_matte, mask=mask),
+            "l2loss": self.l2loss(predict=pred_matte, mask=mask),
+        }
+
+    def validation_step(self, batch, batch_idx):
+        with torch.no_grad():
+            image, mask, trimap, fg, bg = batch
+            image = image/255
+            mask = mask/255
+            trimap = trimap/255
+            fg = fg/255
+            bg = bg/255
+
+            pred_semantic, pred_detail, pred_matte = self(image)
+            
+            # calculate the boundary mask from the trimap
+            boundaries = (trimap < 0.5) + (trimap > 0.5)
+            semantic_scale=10.0
+            detail_scale=10.0
+            matte_scale=1.0
+
+            # calculate the semantic loss
+            gt_semantic = F.interpolate(mask, scale_factor=1/16, mode='bilinear', align_corners=False)
+            gt_semantic = self.blurer(gt_semantic)
+            semantic_loss = torch.mean(F.mse_loss(pred_semantic, gt_semantic))
+            semantic_loss = semantic_scale * semantic_loss
+
+            # calculate the detail loss
+            pred_boundary_detail = torch.where(boundaries, trimap, pred_detail)
+            gt_detail = torch.where(boundaries, trimap, mask)
+            detail_loss = torch.mean(F.l1_loss(pred_boundary_detail, gt_detail))
+            detail_loss = detail_scale * detail_loss
+
+            # calculate the matte loss
+            pred_boundary_matte = torch.where(boundaries, trimap, pred_matte)
+            matte_l1_loss = F.l1_loss(pred_matte, mask) + 4.0 * F.l1_loss(pred_boundary_matte, mask)
+            matte_compositional_loss = F.l1_loss(image * pred_matte, image * mask) \
+                + 4.0 * F.l1_loss(image * pred_boundary_matte, image * mask)
+            matte_loss = torch.mean(matte_l1_loss + matte_compositional_loss)
+            matte_loss = matte_scale * matte_loss
+
+            # calculate the final loss, backward the loss, and update the model 
+            loss = semantic_loss + detail_loss + matte_loss
+        
+        mask = mask*255
+        if batch_idx == 0:
+            self.log_image(title="validation_images", predict=pred_matte, mask=mask)
+
+        return {
+            "loss": loss,
+            "l1loss": self.l1loss(predict=matte_loss, mask=mask),
+            "l2loss": self.l2loss(predict=matte_loss, mask=mask),
+        }
+
+    def predict_step(self, batch, batch_idx):
+        pass
+
+
 #------------------------------------------------------------------------------
 #  _MODNet Basic Modules
 #------------------------------------------------------------------------------
@@ -308,136 +426,3 @@ class _GaussianBlurLayer(pytorch_lightning.LightningModule):
 
         for name, param in self.named_parameters():
             param.data.copy_(torch.from_numpy(kernel))
-
-blurer = _GaussianBlurLayer(1, 3)
-
-def create_optimizers(self):
-    optimizer = torch.optim.Adam(
-            self.parameters(),
-            lr=self.learning_rate,
-        )
-    lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer,
-            factor=self.lr_sc_factor,
-            patience=self.lr_sc_patience,
-            verbose=True,
-        )
-    return {
-        "optimizer": optimizer,
-        "lr_scheduler": lr_scheduler,
-        "monitor": "train_loss",
-    }
-
-class MODNet(pytorch_lightning.LightningModule):
-    def __init__(
-        self,
-        learning_rate: float,
-        lr_sc_factor: float,
-        lr_sc_patience: float,
-        ):
-        super(MODNet, self).__init__()
-        self.net = _MODNet(backbone_pretrained=False)
-        global blurer
-        self.blurer = blurer
-        self.learning_rate = learning_rate
-        self.lr_sc_factor = lr_sc_factor
-        self.lr_sc_patience = lr_sc_patience
-
-    def forward(self, x):
-        return self.net(x, False)
-
-    def training_step(self, batch, batch_idx):
-        image, mask, trimap, fg, bg = batch
-        image=image.float()
-        mask=mask.float()
-        trimap=trimap.float()
-        pred_semantic, pred_detail, pred_matte = self(image)
-        
-        # calculate the boundary mask from the trimap
-        boundaries = (trimap < 0.5) + (trimap > 0.5)
-        semantic_scale=10.0
-        detail_scale=10.0
-        matte_scale=1.0
-
-        # calculate the semantic loss
-        gt_semantic = F.interpolate(mask, scale_factor=1/16, mode='bilinear', align_corners=False)
-        gt_semantic = self.blurer(gt_semantic)
-        semantic_loss = torch.mean(F.mse_loss(pred_semantic, gt_semantic))
-        semantic_loss = semantic_scale * semantic_loss
-
-        # calculate the detail loss
-        pred_boundary_detail = torch.where(boundaries, trimap, pred_detail)
-        gt_detail = torch.where(boundaries, trimap, mask)
-        detail_loss = torch.mean(F.l1_loss(pred_boundary_detail, gt_detail))
-        detail_loss = detail_scale * detail_loss
-
-        # calculate the matte loss
-        pred_boundary_matte = torch.where(boundaries, trimap, pred_matte)
-        matte_l1_loss = F.l1_loss(pred_matte, mask) + 4.0 * F.l1_loss(pred_boundary_matte, mask)
-        matte_compositional_loss = F.l1_loss(image * pred_matte, image * mask) \
-            + 4.0 * F.l1_loss(image * pred_boundary_matte, image * mask)
-        matte_loss = torch.mean(matte_l1_loss + matte_compositional_loss)
-        matte_loss = matte_scale * matte_loss
-
-        # calculate the final loss, backward the loss, and update the model 
-        loss = semantic_loss + detail_loss + matte_loss
-
-        loss = loss/(len(batch)*224*224)
-
-        return {
-            "loss": loss,
-        }
-
-    def training_epoch_end(self, outputs):
-        train_loss = torch.Tensor([output["loss"] for output in outputs]).mean()
-        self.log("train_loss", train_loss, prog_bar=True)
-
-    def validation_step(self, batch, batch_idx):
-        with torch.no_grad():
-            image, mask, trimap, fg, bg = batch
-            image=image.float()
-            mask=mask.float()
-            trimap=trimap.float()
-            pred_semantic, pred_detail, pred_matte = self(image)
-            
-            # calculate the boundary mask from the trimap
-            boundaries = (trimap < 0.5) + (trimap > 0.5)
-            semantic_scale=10.0
-            detail_scale=10.0
-            matte_scale=1.0
-
-            # calculate the semantic loss
-            gt_semantic = F.interpolate(mask, scale_factor=1/16, mode='bilinear', align_corners=False)
-            gt_semantic = self.blurer(gt_semantic)
-            semantic_loss = torch.mean(F.mse_loss(pred_semantic, gt_semantic))
-            semantic_loss = semantic_scale * semantic_loss
-
-            # calculate the detail loss
-            pred_boundary_detail = torch.where(boundaries, trimap, pred_detail)
-            gt_detail = torch.where(boundaries, trimap, mask)
-            detail_loss = torch.mean(F.l1_loss(pred_boundary_detail, gt_detail))
-            detail_loss = detail_scale * detail_loss
-
-            # calculate the matte loss
-            pred_boundary_matte = torch.where(boundaries, trimap, pred_matte)
-            matte_l1_loss = F.l1_loss(pred_matte, mask) + 4.0 * F.l1_loss(pred_boundary_matte, mask)
-            matte_compositional_loss = F.l1_loss(image * pred_matte, image * mask) \
-                + 4.0 * F.l1_loss(image * pred_boundary_matte, image * mask)
-            matte_loss = torch.mean(matte_l1_loss + matte_compositional_loss)
-            matte_loss = matte_scale * matte_loss
-
-            # calculate the final loss, backward the loss, and update the model 
-            loss = semantic_loss + detail_loss + matte_loss
-
-            loss = loss/(len(batch)*224*224)
-
-        return {
-            "loss": loss,
-        }
-
-    def validation_epoch_end(self, outputs):
-        val_loss = torch.Tensor([output["loss"] for output in outputs]).mean()
-        self.log("val_loss", val_loss, prog_bar=True)
-
-    def configure_optimizers(self):
-        return create_optimizers(self)

@@ -4,11 +4,15 @@ data:
     url: https://www.dropbox.com/s/ynkfphdk9mwmp1s/alphamatting.zip?dl=1
     checksum: 7ff7496d3a66c2c74de8e8bf62fff8b2
     filename: alphamatting.zip
-    dir: alphamatting
-    trimap: True
-  matting:
-    url: https://www.dropbox.com/s/ynkfphdk9mwmp1s/alphamatting.zip?dl=1
-    checksum: 7ff7496d3a66c2c74de8e8bf62fff8b2
-    filename: matting.zip
-    dir: matting
-    trimap: True
+    dir:
+      - images
+      - masks
+      - trimaps
+  AMD:
+    url: https://www.dropbox.com/s/wmcjk1xqs63o0rg/adobe_matting_dataset.zip?dl=1
+    checksum: 0c8248b31eb885e6605402d4f86f93af
+    filename: AMD.zip
+    dir:
+      - image
+      - mask
+      - trimap

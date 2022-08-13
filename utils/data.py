@@ -1,51 +1,86 @@
-from utils.download import Downloader
+import pathlib
+import sys
+ROOT = str(pathlib.Path(__file__).parent.parent)
+sys.path.append(ROOT)
+
 import yaml
 import os
 import pandas
+from utils.download import Downloader
+CONFIG_FILE = "config/data.yaml"
 
-DATA_CONFIG = "config/data.yaml"
 
+from abc import ABC, abstractmethod
 
-class Data:
-    def __init__(self, config_file=DATA_CONFIG, key="alphamatting"):
-        self.config_file = config_file
-        self.key = key
-    
-    @property
-    def data_config(self):
-        with open(self.config_file, "r") as file:
-            data_config = yaml.safe_load(file)
-        return data_config
+ 
+class Data_(ABC):
+    def __init__(self, config_path=CONFIG_FILE,  dataset_name=None):
+        self.config_path = config_path
+        self.dataset_name = dataset_name
 
     @property
-    def data_root(self):
+    def config_dict(self):
+        with open(self.config_path, "r") as file:
+            config = yaml.safe_load(file)
+        return config
+
+    @property
+    def root_path(self):
+        return os.path.abspath(self.config_dict['root'])
+
+    @property
+    def data_path(self):
         return os.path.abspath(
             os.path.join(
-                self.data_config['root'],
-                self.data_config['data'][self.key]['dir']
+                self.config_dict['root'],
+                self.dataset_name
             )
         )
 
     @property
-    def get_data_keys(self):
-        return self.data_config['data'].keys()
+    def data_keys(self):
+        return list(self.config_dict['data'].keys())
+
+    @property
+    def dir_list(self):
+        return self.config_dict['data'][self.dataset_name]['dir']
+    
+    @abstractmethod
+    def load(self):
+        pass
+    
+    @abstractmethod
+    def dataframe(self):
+        pass
+
+
+
+class Data(Data_):
+    def __init__(self, dataset_name):
+        super().__init__(dataset_name=dataset_name)
 
     def load(self):
-            data_info = self.data_config['data'][self.key]
-            Downloader(data_info["url"], data_info['checksum'], data_info['filename'], self.data_root).fetch()
+            data_info = self.config_dict['data'][self.dataset_name]
+            Downloader(data_info["url"], data_info['checksum'], data_info['filename'], self.data_path).fetch()
     
-    def generate_dataframe(self):
+    def dataframe(self):
 
-        image_path = os.path.abspath(os.path.join(self.data_root, "images"))
-        mask_path = os.path.abspath(os.path.join(self.data_root, "masks"))
-        trimap_path = os.path.abspath(os.path.join(self.data_root, "trimaps"))
+        dir_dict = {}
 
-        image_list = [os.path.join(image_path, name) for name in os.listdir(image_path)]
-        mask_list = [os.path.join(mask_path, name) for name in os.listdir(mask_path)]
-        trimap_list = [os.path.join(trimap_path, name) for name in os.listdir(trimap_path)]
+        for dir in self.dir_list:
+            dir_dict[dir] = os.path.abspath(os.path.join(self.data_path, dir))
+
+        for dir in list(dir_dict.keys()):
+            dir_dict[dir] = [os.path.join(dir_dict[dir], name) for name in os.listdir(dir_dict[dir])]
 
         df = pandas.DataFrame(
-            zip(image_list, mask_list, trimap_list),
-            columns=['image', 'mask', 'trimap'],
+            zip(*[dir_dict[dir] for dir in list(dir_dict.keys())]),
+            columns=list(dir_dict.keys()),
         )
         return df
+
+if __name__== "__main__":
+    data = Data()
+    data.load()
+    l = data.dataframe()
+    print(l)

@@ -5,51 +5,24 @@ from torchvision import models
 import torch.nn.functional as F
 import torch.optim as optim
 from networks.gfm_util import *
-
-def create_optimizers(self):
-    optimizer = torch.optim.Adam(
-            self.parameters(),
-            lr=self.learning_rate,
-        )
-    lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer,
-            factor=self.lr_sc_factor,
-            patience=self.lr_sc_patience,
-            verbose=True,
-        )
-    return {
-        "optimizer": optimizer,
-        "lr_scheduler": lr_scheduler,
-        "monitor": "val_loss",
-    }
+from networks.Wrapper import LightningWrapper
 
 
-class GFM(pytorch_lightning.LightningModule):
+class GFM(LightningWrapper):
     def __init__(
         self,
-        learning_rate: float,
-        lr_sc_factor: float,
-        lr_sc_patience: float,
+        settings = None
     ):
-        super(GFM, self).__init__()
+        super().__init__(settings)
         self.net = _GFM(backbone='r34', rosta='TT')
-        self.learning_rate = learning_rate
-        self.lr_sc_factor = lr_sc_factor
-        self.lr_sc_patience = lr_sc_patience
 
     def forward(self, x):
         return self.net(x)
 
     def training_step(self, batch, batch_idx):
         image, mask, trimap, fg, bg = batch
-        image = image.float()
-        mask = mask.float()
-        trimap = trimap.float()
-        fg = fg.float()
-        bg = bg.float()
 
         predict_global, predict_local, predict_fusion = self(image)
-        # loss = F.mse_loss(predict, mask)
 
         loss_global = get_crossentropy_loss(3, trimap, predict_global)
         loss_local = get_alpha_loss(predict_local, mask, trimap) + get_laplacian_loss(predict_local, mask, trimap)
@@ -58,30 +31,19 @@ class GFM(pytorch_lightning.LightningModule):
         loss_fusion_comp = get_composition_loss_whole_img(image, mask, fg, bg, predict_fusion)
         loss = 0.25*loss_global+0.25*loss_local+0.25*loss_fusion_alpha+0.25*loss_fusion_comp
 
-        mse = F.mse_loss(predict_fusion, mask)
+        self.log_image(title="training_images", predict=predict_fusion, mask=mask)
 
         return {
             "loss": loss,
-            "mse": mse,
+            "l1loss": self.l1loss(predict=predict_fusion, mask=mask),
+            "l2loss": self.l2loss(predict=predict_fusion, mask=mask),
         }
-
-    def training_epoch_end(self, outputs):
-        train_loss = torch.Tensor([output["loss"] for output in outputs]).mean()
-        mse_loss = torch.Tensor([output["mse"] for output in outputs]).mean()
-        self.log("train_loss", train_loss, prog_bar=True)
-        self.log("mse_loss", mse_loss, prog_bar=True)
 
     def validation_step(self, batch, batch_idx):
         with torch.no_grad():
             image, mask, trimap, fg, bg = batch
-            image = image.float()
-            mask = mask.float()
-            trimap = trimap.float()
-            fg = fg.float()
-            bg = bg.float()
 
             predict_global, predict_local, predict_fusion = self(image)
-            # loss = F.mse_loss(predict, mask)
 
             loss_global = get_crossentropy_loss(3, trimap, predict_global)
             loss_local = get_alpha_loss(predict_local, mask, trimap) + get_laplacian_loss(predict_local, mask, trimap)
@@ -90,21 +52,16 @@ class GFM(pytorch_lightning.LightningModule):
             loss_fusion_comp = get_composition_loss_whole_img(image, mask, fg, bg, predict_fusion)
             loss = 0.25*loss_global+0.25*loss_local+0.25*loss_fusion_alpha+0.25*loss_fusion_comp
 
-            mse = F.mse_loss(predict_fusion, mask)
+            self.log_image(title="validation_images", predict=predict_fusion, mask=mask)
 
         return {
-            "vloss": loss,
-            "vmse": mse,
+            "loss": loss,
+            "l1loss": self.l1loss(predict=predict_fusion, mask=mask),
+            "l2loss": self.l2loss(predict=predict_fusion, mask=mask),
         }
 
-    def validation_epoch_end(self, outputs):
-        val_loss = torch.Tensor([output["vloss"] for output in outputs]).mean()
-        eval_mse_loss = torch.Tensor([output["vmse"] for output in outputs]).mean()
-        self.log("val_loss", val_loss, prog_bar=True)
-        self.log("eval_mse_loss", eval_mse_loss, prog_bar=True)
-
-    def configure_optimizers(self):
-        return create_optimizers(self)
+    def predict_step(self, batch, batch_idx):
+        pass
 
 def collaborative_matting(rosta, glance_sigmoid, focus_sigmoid):
 	if rosta =='TT':

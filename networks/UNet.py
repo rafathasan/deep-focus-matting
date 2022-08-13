@@ -3,74 +3,55 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-
-def create_optimizers(self):
-    optimizer = torch.optim.Adam(
-            self.parameters(),
-            lr=self.learning_rate,
-        )
-    lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer,
-            factor=self.lr_sc_factor,
-            patience=self.lr_sc_patience,
-            verbose=True,
-        )
-    return {
-        "optimizer": optimizer,
-        "lr_scheduler": lr_scheduler,
-        "monitor": "val_loss",
-    }
+from networks.Wrapper import LightningWrapper
 
 
-class UNet(pytorch_lightning.LightningModule):
+class UNet(LightningWrapper):
     def __init__(
         self,
-        learning_rate: float,
-        lr_sc_factor: float,
-        lr_sc_patience: float,
+        settings = None,
     ):
-        super(UNet, self).__init__()
+        super().__init__(settings)
         self.net = _UNet()
-        self.learning_rate = learning_rate
-        self.lr_sc_factor = lr_sc_factor
-        self.lr_sc_patience = lr_sc_patience
 
     def forward(self, x):
         return self.net(x)
 
     def training_step(self, batch, batch_idx):
         image, mask, trimap, fg, bg = batch
-        image = image/255
-        mask = mask/255
         predict = torch.sigmoid(self(image))
-        loss = F.mse_loss(predict, mask)
+        loss = F.mse_loss(predict, mask) / (mask.shape[0]*mask.shape[1]*mask.shape[2]*mask.shape[3])
+
+        self.log_image(title="training_images", predict=predict, mask=mask)
 
         return {
             "loss": loss,
+            "l1loss": self.l1loss(predict=predict, mask=mask),
+            "l2loss": self.l2loss(predict=predict, mask=mask),
         }
 
-    def training_epoch_end(self, outputs):
-        train_loss = torch.Tensor([output["loss"] for output in outputs]).mean()
-        self.log("train_loss", train_loss, prog_bar=True)
-
     def validation_step(self, batch, batch_idx):
+        with torch.no_grad():
+            image, mask, trimap, fg, bg = batch
+            predict = torch.sigmoid(self(image))
+            loss = F.mse_loss(predict, mask) / (mask.shape[0]*mask.shape[1]*mask.shape[2]*mask.shape[3])
+
+        self.log_image(title="validation_images", predict=predict, mask=mask)
+
+        return {
+            "loss": loss,
+            "l1loss": self.l1loss(predict=predict, mask=mask),
+            "l2loss": self.l2loss(predict=predict, mask=mask),
+        }
+
+    def predict_step(self, batch, batch_idx):
         with torch.no_grad():
             image, mask, trimap, fg, bg = batch
             image = image/255
             mask = mask/255
             predict = torch.sigmoid(self(image))
-            loss = F.mse_loss(predict, mask)
 
-        return {
-            "vloss": loss,
-        }
-
-    def validation_epoch_end(self, outputs):
-        val_loss = torch.Tensor([output["vloss"] for output in outputs]).mean()
-        self.log("val_loss", val_loss, prog_bar=True)
-
-    def configure_optimizers(self):
-        return create_optimizers(self)
+            return predict
 
 class _DoubleConv(pytorch_lightning.LightningModule):
     def __init__(self, in_channels, out_channels):

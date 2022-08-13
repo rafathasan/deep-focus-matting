@@ -9,14 +9,10 @@ from albumentations.pytorch import ToTensorV2
 
 RESIZE = 224
 
-def create_train_transform(height: int = 224, width: int = 224):
+def create_train_transform(height: int = RESIZE, width: int = RESIZE):
     return A.Compose(
         [
-            A.Resize(height, width),
-            A.HorizontalFlip(p=0.5),
-            A.Rotate(limit=25, p=.5),
-            A.Downscale(scale_min=0.25, scale_max=0.25, p=0.5),
-            A.Blur(blur_limit=7, p=0.5),
+            A.RandomCrop(height=RESIZE,width=RESIZE),
             ToTensorV2(),
         ],
         additional_targets={
@@ -28,10 +24,10 @@ def create_train_transform(height: int = 224, width: int = 224):
         },
     )
 
-def create_test_transform(height: int = 224, width: int = 224):
+def create_test_transform(height: int = RESIZE, width: int = RESIZE):
     return A.Compose(
         [
-            A.Resize(height, width),
+            A.CenterCrop(height=RESIZE,width=RESIZE),
             ToTensorV2(),
         ],
         additional_targets={
@@ -89,39 +85,14 @@ class MattingDataset(Dataset):
 
         max_crop_size = max(min(w, h), RESIZE)
 
-        image = numpy.array(image_b)
-        mask = numpy.array(mask_b)
-        trimap = numpy.array(trimap_b)
+        image = numpy.array(image_b).astype(numpy.float32)
+        mask = numpy.array(mask_b).astype(numpy.float32)
+        trimap = numpy.array(trimap_b).astype(numpy.float32)
 
         fg = image*(mask.copy()[:, :, numpy.newaxis])
         bg = image*(1-(mask.copy()[:, :, numpy.newaxis]))
 
-        # transformed = self.transform(image=image, mask=mask, trimap=trimap, fg=fg, bg=bg)
-        # image = transformed["image"]
-        # mask = transformed["mask"]
-        # trimap = transformed["trimap"]
-        # fg = transformed["fg"]
-        # bg = transformed["bg"]
-
-        resizeTransform = A.Compose(
-        [
-            A.CenterCrop(height=max_crop_size, width=max_crop_size),
-            A.Resize(height=RESIZE,width=RESIZE),
-            A.HorizontalFlip(p=0.5),
-            # A.Rotate(limit=25, p=.5),
-            A.Blur(blur_limit=7, p=0.5),
-            ToTensorV2(),
-        ],
-        additional_targets={
-            "image": "image",
-            "mask": "image",
-            "trimap": "image",
-            "fg": "image",
-            "bg": "image",
-        },
-        )
-
-        transformed = resizeTransform(image=image, mask=mask, trimap=trimap, fg=fg, bg=bg)
+        transformed = self.transform(image=image, mask=mask, trimap=trimap, fg=fg, bg=bg)
         image = transformed["image"]
         mask = transformed["mask"]
         trimap = transformed["trimap"]

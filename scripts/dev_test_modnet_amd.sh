@@ -1,1 +1,1 @@
-python train.py --model-type=MODNet --dataset-name=AMD --gpu-indices=2,3 --num-workers=4 --epochs=1000 --learning-rate=1e-3 --lr-scheduler-factor=0.9 --lr-scheduler-patience=10
+python train.py --model-type=MODNet --dataset-name=AMD --gpu-indices=0,1,2,3,4,5,6,7 --num-workers=8 --batch-size=32 --epochs=100 --learning-rate=1e-4

@@ -61,12 +61,13 @@ def build_parser() -> argparse.ArgumentParser:
         CUDA_VISIBLE_DEVICES environment variable""",
     )
     parser.add_argument("--num-workers", type=int, default=4)
+    parser.add_argument("--batch-size", type=int, default=4)
 
     # Hyperparams
     parser.add_argument("--epochs", type=int, default=10)
     parser.add_argument("--learning-rate", type=float, default=1e-3)
-    parser.add_argument("--lr-scheduler-factor", type=float, default=0.1)
-    parser.add_argument("--lr-scheduler-patience", type=int, default=50)
+    # parser.add_argument("--lr-scheduler-factor", type=float, default=0.1)
+    # parser.add_argument("--lr-scheduler-patience", type=int, default=50)
     
     return parser
 
@@ -82,6 +83,7 @@ if __name__ == "__main__":
     training_config = args.training_config_file_path
     epochs = args.epochs
     num_workers = args.num_workers
+    batch_size = args.batch_size
     resume_from_checkpoint  = args.resume_from_checkpoint
 
 
@@ -90,20 +92,25 @@ if __name__ == "__main__":
     Raises:
         Exception
     """
+    settings = {
+            "learning_rate": args.learning_rate,
+            "monitor": "validation_loss"
+        }
+
     if model_type == "MODNet":
-        network = MODNet(args.learning_rate,args.lr_scheduler_factor, args.lr_scheduler_patience)
+        network = MODNet(settings)
     elif model_type == "UNet":
-        network = UNet(args.learning_rate,args.lr_scheduler_factor, args.lr_scheduler_patience)
+        network = UNet(settings)
     elif model_type == "GFM":
-        network = GFM(args.learning_rate,args.lr_scheduler_factor, args.lr_scheduler_patience)
+        network = GFM(settings)
     elif model_type == "DFM":
-        network = DFM(args.learning_rate,args.lr_scheduler_factor, args.lr_scheduler_patience)
+        network = DFM(settings)
     else:
         raise Exception("model_type not given")
 
     """_dataset_
     """
-    data_module = MattingDataModule()
+    data_module = MattingDataModule(dataset_name=args.dataset_name, num_workers=args.num_workers, batch_size=args.batch_size)
 
     data_module.prepare_data()
 
@@ -111,7 +118,7 @@ if __name__ == "__main__":
     from pytorch_lightning.loggers import WandbLogger
 
     experiment_name = f"{args.model_type}_{args.dataset_name}"
-    version_name = f"epochs:{args.epochs}_lr:{args.learning_rate}_factor:{args.lr_scheduler_factor}_patience:{args.lr_scheduler_patience}"
+    version_name = f"epochs:{args.epochs}_lr:{args.learning_rate}"
     tensorboard_logger = TensorBoardLogger(args.log_folder, name=experiment_name, version=version_name)
     wandb_logger = WandbLogger(project=experiment_name)
 
@@ -121,7 +128,8 @@ if __name__ == "__main__":
         ModelCheckpoint(
             dirpath=checkpoint_path,
             every_n_epochs=1,
-            monitor="mse_validation",
+            mode="min",
+            monitor="validation_loss",
             save_last=True,
         ),
     ]
@@ -133,6 +141,8 @@ if __name__ == "__main__":
     trainer = Trainer(
         logger=tensorboard_logger,
         gpus=torch.cuda.device_count(),
+        # devices=torch.cuda.device_count(),
+        # accelerator="gpu",
         # strategy=DDPPlugin(find_unused_parameters=False),
         strategy=DDPPlugin(),
         callbacks=callbacks,
