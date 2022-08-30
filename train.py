@@ -1,4 +1,5 @@
 #!/home/rafatmatting/anaconda3/envs/ml/bin/python
+from ensurepip import version
 import torch
 from pytorch_lightning import LightningModule, Trainer
 from networks.UNet import UNet
@@ -28,7 +29,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--dataset-name",
         type=str,
         default="AMD",
-        choices=["AMD", "PPM-100"],
+        choices=["AMD", "AMD_cropped", "PPM-100"],
     )
 
     # Files
@@ -62,6 +63,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--num-workers", type=int, default=4)
     parser.add_argument("--batch-size", type=int, default=4)
+    parser.add_argument("--version", type=str, default="0")
+    parser.add_argument("--resume", action='store_true')
 
     # Hyperparams
     parser.add_argument("--epochs", type=int, default=10)
@@ -84,6 +87,8 @@ if __name__ == "__main__":
     epochs = args.epochs
     num_workers = args.num_workers
     batch_size = args.batch_size
+    _version = args.version
+    resume = args.resume
     resume_from_checkpoint  = args.resume_from_checkpoint
 
 
@@ -94,7 +99,7 @@ if __name__ == "__main__":
     """
     settings = {
             "learning_rate": args.learning_rate,
-            "monitor": "validation_loss"
+            "monitor": "training_loss"
         }
 
     if model_type == "MODNet":
@@ -115,44 +120,50 @@ if __name__ == "__main__":
     data_module.prepare_data()
 
     from pytorch_lightning.loggers import TensorBoardLogger
-    from pytorch_lightning.loggers import WandbLogger
+    # from pytorch_lightning.loggers import WandbLogger
 
     experiment_name = f"{args.model_type}_{args.dataset_name}"
-    version_name = f"epochs:{args.epochs}_lr:{args.learning_rate}"
-    tensorboard_logger = TensorBoardLogger(args.log_folder, name=experiment_name, version=version_name)
-    wandb_logger = WandbLogger(project=experiment_name)
+    tensorboard_logger = TensorBoardLogger(args.log_folder, name=experiment_name, version=_version)
+    # wandb_logger = WandbLogger(project=experiment_name)
 
-    checkpoint_path = os.path.join(args.log_folder, experiment_name, version_name, "checkpoints")
+    checkpoint_path = os.path.join(args.log_folder, experiment_name, _version, "checkpoints")
 
     callbacks = [
         ModelCheckpoint(
             dirpath=checkpoint_path,
-            every_n_epochs=1,
+            filename="best_{epoch}_{training_l2loss:0:.4f}",
+            # every_n_epochs=1,
+            # every_n_train_steps=1,
             mode="min",
-            monitor="validation_loss",
-            save_last=True,
+            monitor="training_l2loss",
+            save_top_k=-1,
         ),
     ]
 
-    checkpoint_file = os.path.join(checkpoint_path,"last.ckpt")
+    checkpoint_file=None
+    if resume:
+        checkpoint_file = os.path.join(checkpoint_path,"last.ckpt")
 
     from pytorch_lightning.plugins import DDPPlugin
 
     trainer = Trainer(
         logger=tensorboard_logger,
-        gpus=torch.cuda.device_count(),
+        # gpus=torch.cuda.device_count(),
         # devices=torch.cuda.device_count(),
         # accelerator="gpu",
         # strategy=DDPPlugin(find_unused_parameters=False),
         strategy=DDPPlugin(),
-        callbacks=callbacks,
+        # callbacks=callbacks,
         max_epochs=args.epochs,
         # auto_lr_find=True,
         # auto_scale_batch_size=True,
         # overfit_batches=10,
         # fast_dev_run=1,
-        # resume_from_checkpoint=checkpoint_file,
+        # log_every_n_steps=50,
+        # flush_logs_every_n_steps=100,
+        resume_from_checkpoint=checkpoint_file,
+        limit_val_batches=0,
+        num_sanity_val_steps=0,
     )
-
     # trainer.tune(network, datamodule=data_module)
     trainer.fit(network, datamodule=data_module, ckpt_path=None)

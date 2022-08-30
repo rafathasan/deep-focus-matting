@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import numpy as np
-
+import torchvision
 from .backbones import SUPPORTED_BACKBONES
 
 from networks.Wrapper import LightningWrapper
@@ -29,10 +29,19 @@ class MODNet(LightningWrapper):
         image = image/255
         mask = mask/255
         trimap = trimap/255
-        fg = fg/255
+        fg = fg/(255*255)
         bg = bg/255
 
         pred_semantic, pred_detail, pred_matte = self(image)
+
+        # print(f"{image.unique().max()=}")
+        # print(f"{mask.unique().max()=}")
+        # print(f"{trimap.unique().max()=}")
+        # print(f"{fg.unique().max()=}")
+        # print(f"{bg.unique().max()=}")
+        # print(f"{pred_semantic.unique().max()=}")
+        # print(f"{pred_detail.unique().max()=}")
+        # print(f"{pred_matte.unique().max()=}")
         
         # calculate the boundary mask from the trimap
         boundaries = (trimap < 0.5) + (trimap > 0.5)
@@ -42,7 +51,7 @@ class MODNet(LightningWrapper):
 
         # calculate the semantic loss
         gt_semantic = F.interpolate(mask, scale_factor=1/16, mode='bilinear', align_corners=False)
-        gt_semantic = self.blurer(gt_semantic)
+        gt_semantic = self.blurer(gt_semantic) # Added sigmoid to avoid incorrect loss calc
         semantic_loss = torch.mean(F.mse_loss(pred_semantic, gt_semantic))
         semantic_loss = semantic_scale * semantic_loss
 
@@ -51,6 +60,8 @@ class MODNet(LightningWrapper):
         gt_detail = torch.where(boundaries, trimap, mask)
         detail_loss = torch.mean(F.l1_loss(pred_boundary_detail, gt_detail))
         detail_loss = detail_scale * detail_loss
+
+
 
         # calculate the matte loss
         pred_boundary_matte = torch.where(boundaries, trimap, pred_matte)
@@ -67,6 +78,8 @@ class MODNet(LightningWrapper):
         
         if batch_idx == 0:
             self.log_image(title="training_images", predict=pred_matte, mask=mask)
+            self.logger.experiment.add_image("training_global",  torchvision.utils.make_grid(F.interpolate(pred_semantic, scale_factor=16, mode='bilinear', align_corners=False)), self.current_epoch)
+            self.log_image(title="training_local", predict=pred_detail, mask=mask)
 
         return {
             "loss": loss,
@@ -114,9 +127,12 @@ class MODNet(LightningWrapper):
             # calculate the final loss, backward the loss, and update the model 
             loss = semantic_loss + detail_loss + matte_loss
         
-        mask = mask*255
-        if batch_idx == 0:
-            self.log_image(title="validation_images", predict=pred_matte, mask=mask)
+            mask = mask*255
+
+            if batch_idx == 0:
+                self.log_image(title="validation_images", predict=pred_matte, mask=mask)
+                self.logger.experiment.add_image("validation_global", torchvision.utils.make_grid(pred_semantic), self.current_epoch)
+                self.log_image(title="validation_local", predict=pred_detail, mask=mask)
 
         return {
             "loss": loss,
@@ -125,7 +141,17 @@ class MODNet(LightningWrapper):
         }
 
     def predict_step(self, batch, batch_idx):
-        pass
+        with torch.no_grad():
+            image, mask, trimap, fg, bg = batch
+            image = image/255
+            mask = mask/255
+            trimap = trimap/255
+            fg = fg/255
+            bg = bg/255
+
+            pred_semantic, pred_detail, pred_matte = self(image)
+
+            return pred_matte
 
 
 #------------------------------------------------------------------------------
@@ -414,7 +440,7 @@ class _GaussianBlurLayer(pytorch_lightning.LightningModule):
                   'not the same as input ({1})\n'.format(self.channels, x.shape[1]))
             exit()
             
-        return self.op(x)
+        return F.sigmoid(self.op(x))
     
     def _init_kernel(self):
         sigma = 0.3 * ((self.kernel_size - 1) * 0.5 - 1) + 0.8

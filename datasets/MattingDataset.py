@@ -1,3 +1,4 @@
+from configparser import Interpolation
 import torch
 from PIL import Image
 from torch.utils.data import Dataset
@@ -12,7 +13,9 @@ RESIZE = 224
 def create_train_transform(height: int = RESIZE, width: int = RESIZE):
     return A.Compose(
         [
-            A.RandomCrop(height=RESIZE,width=RESIZE),
+            # A.RandomCrop(height=RESIZE,width=RESIZE),
+            # A.Resize(width=RESIZE, height=RESIZE),
+            # A.RandomSizedBBoxSafeCrop(height=RESIZE,width=RESIZE, erosion_rate=.2),
             ToTensorV2(),
         ],
         additional_targets={
@@ -27,7 +30,8 @@ def create_train_transform(height: int = RESIZE, width: int = RESIZE):
 def create_test_transform(height: int = RESIZE, width: int = RESIZE):
     return A.Compose(
         [
-            A.CenterCrop(height=RESIZE,width=RESIZE),
+            A.RandomCrop(height=RESIZE,width=RESIZE),
+            # A.Resize(width=RESIZE, height=RESIZE),
             ToTensorV2(),
         ],
         additional_targets={
@@ -77,20 +81,46 @@ class MattingDataset(Dataset):
         mask_path = self.annotations_df.iloc[index, 1]
         trimap_path = self.annotations_df.iloc[index, 2]
 
+
         image_b = Image.open(image_path)
         mask_b = Image.open(mask_path).convert("L")
         trimap_b = Image.open(trimap_path).convert("L")
+
 
         w, h = image_b.size
 
         max_crop_size = max(min(w, h), RESIZE)
 
+        if self.train:
+            self.transform = A.Compose(
+        [
+            # A.RandomSizedCrop((max_crop_size,max_crop_size),height=224,width=224),
+            A.Resize(width=224, height=224),
+            ToTensorV2(),
+        ],
+        additional_targets={
+            "image": "image",
+            "mask": "image",
+            "trimap": "image",
+            "fg": "image",
+            "bg": "image",
+        },
+    )
+
         image = numpy.array(image_b).astype(numpy.float32)
         mask = numpy.array(mask_b).astype(numpy.float32)
         trimap = numpy.array(trimap_b).astype(numpy.float32)
 
-        fg = image*(mask.copy()[:, :, numpy.newaxis])
-        bg = image*(1-(mask.copy()[:, :, numpy.newaxis]))
+        try:
+            fg_path = self.annotations_df.iloc[index, 3]
+            bg_path = self.annotations_df.iloc[index, 4]
+            fg_b = Image.open(fg_path)
+            bg_b = Image.open(bg_path)
+            fg = numpy.array(fg_b).astype(numpy.float32)
+            bg = numpy.array(bg_b).astype(numpy.float32)
+        except Exception as e:
+            fg = image*(mask.copy()[:, :, numpy.newaxis])
+            bg = image*(1-(mask.copy()[:, :, numpy.newaxis]))
 
         transformed = self.transform(image=image, mask=mask, trimap=trimap, fg=fg, bg=bg)
         image = transformed["image"]
@@ -98,5 +128,5 @@ class MattingDataset(Dataset):
         trimap = transformed["trimap"]
         fg = transformed["fg"]
         bg = transformed["bg"]
-
+        
         return image, mask, trimap, fg, bg

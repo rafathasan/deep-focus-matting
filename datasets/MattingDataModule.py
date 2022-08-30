@@ -10,12 +10,16 @@ from utils.dataset import generate_dataframe
 from utils.data import Data
 from sklearn.model_selection import train_test_split
 
+def split_dataset(df):
+    return numpy.split(df.sample(frac=1, random_state=42), [int(.7*len(df)), int(.9*len(df))])
+
 class MattingDataModule(pytorch_lightning.LightningDataModule):
     def __init__(
         self,
         dataset_name = None,
         batch_size: int = None,
         num_workers: int = None,
+        transform = None,
     ):  
         if dataset_name == None:
             raise Exception("Dataset not given")
@@ -23,6 +27,7 @@ class MattingDataModule(pytorch_lightning.LightningDataModule):
 
         self.batch_size = batch_size
         self.num_workers = num_workers
+        self.transform = transform
         
 
     def prepare_data(self) -> None:
@@ -30,10 +35,10 @@ class MattingDataModule(pytorch_lightning.LightningDataModule):
 
     def setup(self, stage: str = None) -> None:
         df = self.data.dataframe()
-        train_df, test_df, val_df = numpy.split(df.sample(frac=1, random_state=42), [int(.6*len(df)), int(.8*len(df))])
+        train_df, test_df, val_df = split_dataset(df)
         self.train_data = MattingDataset(train_df)
-        self.val_data = MattingDataset(val_df, train=False)
-        self.test_data = MattingDataset(test_df, train=False)
+        self.val_data = MattingDataset(val_df, train=False, transform=self.transform)
+        self.test_data = MattingDataset(test_df, train=False, transform=self.transform)
 
         
 

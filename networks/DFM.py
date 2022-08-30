@@ -16,6 +16,7 @@ class DFM(LightningWrapper):
         settings = None
     ):
         super().__init__(settings)
+        # self.net = torch.nn.DataParallel(DeepLabV3Plus(3))
         self.net = DeepLabV3Plus(3)
 
     def forward(self, x):
@@ -33,7 +34,10 @@ class DFM(LightningWrapper):
         loss_fusion_comp = get_composition_loss_whole_img(image, mask, fg, bg, predict_fusion)
         loss = 0.25*loss_global+0.25*loss_local+0.25*loss_fusion_alpha+0.25*loss_fusion_comp
 
-        self.log_image(title="training_images", predict=predict_fusion, mask=mask)
+        if batch_idx == 0:
+            self.log_image(title="training_images", predict=predict_fusion, mask=mask)
+            self.logger.experiment.add_image("training_global", torchvision.utils.make_grid(predict_global), self.current_epoch)
+            self.log_image(title="training_local", predict=predict_local, mask=mask)
 
         return {
             "loss": loss,
@@ -52,9 +56,12 @@ class DFM(LightningWrapper):
 
             loss_fusion_alpha = get_alpha_loss_whole_img(predict_fusion, mask) + get_laplacian_loss_whole_img(predict_fusion, mask)
             loss_fusion_comp = get_composition_loss_whole_img(image, mask, fg, bg, predict_fusion)
-            loss = 0.25*loss_global+0.25*loss_local+0.25*loss_fusion_alpha+0.25*loss_fusion_comp
+            loss = 0.25*loss_global+0.25*loss_local +0.25*loss_fusion_alpha+0.25*loss_fusion_comp
 
-            self.log_image(title="validation_images", predict=predict_fusion, mask=mask)
+            if batch_idx == 0:
+                self.log_image(title="validation_images", predict=predict_fusion, mask=mask)
+                self.logger.experiment.add_image("validation_global", torchvision.utils.make_grid(predict_global), self.current_epoch)
+                self.log_image(title="validation_local", predict=predict_local, mask=mask)
 
         return {
             "loss": loss,
@@ -63,4 +70,9 @@ class DFM(LightningWrapper):
         }
 
     def predict_step(self, batch, batch_idx):
-        pass
+        with torch.no_grad():
+            image, mask, trimap, fg, bg = batch
+
+            predict_global, predict_local, predict_fusion = self(image)
+
+            return image, mask, predict_global, predict_local, predict_fusion

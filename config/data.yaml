@@ -16,3 +16,13 @@ data:
       - image
       - mask
       - trimap
+  AMD_cropped:
+    url: https://www.dropbox.com/s/wmcjk1xqs63o0rg/adobe_matting_dataset.zip?dl=1
+    checksum: 0c8248b31eb885e6605402d4f86f93af
+    filename: AMD.zip
+    dir:
+      - image_cropped
+      - mask_cropped
+      - trimap_cropped
+      - fg_cropped
+      - bg_cropped

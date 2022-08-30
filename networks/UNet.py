@@ -20,9 +20,10 @@ class UNet(LightningWrapper):
     def training_step(self, batch, batch_idx):
         image, mask, trimap, fg, bg = batch
         predict = torch.sigmoid(self(image))
-        loss = F.mse_loss(predict, mask) / (mask.shape[0]*mask.shape[1]*mask.shape[2]*mask.shape[3])
+        loss = F.mse_loss(predict, mask/255)
 
-        self.log_image(title="training_images", predict=predict, mask=mask)
+        if batch_idx == 0:
+            self.log_image(title="training_images", predict=predict, mask=torch.relu(mask))
 
         return {
             "loss": loss,
@@ -36,7 +37,8 @@ class UNet(LightningWrapper):
             predict = torch.sigmoid(self(image))
             loss = F.mse_loss(predict, mask) / (mask.shape[0]*mask.shape[1]*mask.shape[2]*mask.shape[3])
 
-        self.log_image(title="validation_images", predict=predict, mask=mask)
+            if batch_idx == 0:
+                self.log_image(title="validation_images", predict=predict, mask=mask)
 
         return {
             "loss": loss,
@@ -47,8 +49,6 @@ class UNet(LightningWrapper):
     def predict_step(self, batch, batch_idx):
         with torch.no_grad():
             image, mask, trimap, fg, bg = batch
-            image = image/255
-            mask = mask/255
             predict = torch.sigmoid(self(image))
 
             return predict

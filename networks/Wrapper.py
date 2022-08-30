@@ -7,23 +7,34 @@ import torch.optim as optim
 from abc import ABC, abstractmethod
 
 def create_optimizers(self, settings):
-    optimizer = torch.optim.Adam(
+    # optimizer = torch.optim.Adam(
+    #         self.parameters(),
+    #         lr=settings["learning_rate"],
+    #         # weight_decay=1e-6
+    #     )
+    optimizer = torch.optim.SGD(
             self.parameters(),
             lr=settings["learning_rate"],
-            # weight_decay=1e-4
+            momentum=0.9,
         )
-    # lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-    #         optimizer,
-    #         factor=settings["lr_scheduler_factor"],
-    #         patience=settings["lr_scheduler_patience"],
-    #         verbose=True,
-    #     )
-    lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(
+    lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(
             optimizer,
-            T_max=5,
-            eta_min=1e-6,
+            factor=.1,
+            patience=2,
             verbose=True,
         )
+    # lr_scheduler = optim.lr_scheduler.StepLR(
+    #         optimizer,
+    #         step_size=10,
+    #         gamma=.1,
+    #         verbose=False,
+    #     )
+    # lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(
+    #         optimizer,
+    #         T_max=5,
+    #         eta_min=1e-5,
+    #         verbose=False,
+    #     )
 
     return {
         "optimizer": optimizer,
@@ -37,10 +48,10 @@ class LightningWrapper(pytorch_lightning.LightningModule, ABC):
         self.settings = settings
     
     def l1loss(self, predict, mask):
-        return F.mse_loss(predict, mask, reduction="mean") / (mask.shape[0]*mask.shape[1]*mask.shape[2]*mask.shape[3])
+        return F.l1_loss(predict, mask/255)
 
     def l2loss(self, predict, mask):
-        return F.l1_loss(predict, mask, reduction="mean") / (mask.shape[0]*mask.shape[1]*mask.shape[2]*mask.shape[3])
+        return F.mse_loss(predict, mask/255)
 
     def log_image(self, title, predict, mask):
         grid = torchvision.utils.make_grid(torch.cat((predict, mask/255), 2))

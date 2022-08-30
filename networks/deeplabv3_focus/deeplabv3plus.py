@@ -3,6 +3,7 @@ from torch import nn
 from torch.nn import functional as F
 from torchvision import models
 import pytorch_lightning
+import numpy as np
 
 def collaborative_matting_(glance_sigmoid, focus_sigmoid):
     values, index = torch.max(glance_sigmoid,1)
@@ -209,6 +210,9 @@ class DeepLabV3Plus(pytorch_lightning.LightningModule):
         self.decoder0_g = build_decoder(128, 64, 64, 3, False, True)
         self.decoder0_f = build_decoder(128, 64, 64, 1, False, True)
 
+        #
+        # Need to replace this with e-ASPP
+        #
         self.aspp = ASPP(512, aspp_dilate)
 
         self.classifier = nn.Sequential(

@@ -61,7 +61,12 @@ class GFM(LightningWrapper):
         }
 
     def predict_step(self, batch, batch_idx):
-        pass
+        with torch.no_grad():
+            image, mask, trimap, fg, bg = batch
+
+            predict_global, predict_local, predict_fusion = self(image)
+
+            return predict_fusion
 
 def collaborative_matting(rosta, glance_sigmoid, focus_sigmoid):
 	if rosta =='TT':

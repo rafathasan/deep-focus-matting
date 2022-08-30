@@ -275,7 +275,7 @@ def get_alpha_loss(predict, alpha, trimap):
 	alpha_f = alpha_f.cuda()
 	diff = predict - alpha_f
 	diff = diff * weighted
-	alpha_loss = torch.sqrt(diff ** 2 + 1e-12)
+	alpha_loss = torch.sqrt(diff ** 2 + 1e-12) # 1e-12
 	alpha_loss_weighted = alpha_loss.sum() / (weighted.sum() + 1.)
 	return alpha_loss_weighted
 
