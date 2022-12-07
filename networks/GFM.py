@@ -1,6 +1,7 @@
 import pytorch_lightning
 import torch
 import torch.nn as nn
+import torchvision
 from torchvision import models
 import torch.nn.functional as F
 import torch.optim as optim
@@ -29,9 +30,12 @@ class GFM(LightningWrapper):
 
         loss_fusion_alpha = get_alpha_loss_whole_img(predict_fusion, mask) + get_laplacian_loss_whole_img(predict_fusion, mask)
         loss_fusion_comp = get_composition_loss_whole_img(image, mask, fg, bg, predict_fusion)
-        loss = 0.25*loss_global+0.25*loss_local+0.25*loss_fusion_alpha+0.25*loss_fusion_comp
-
-        self.log_image(title="training_images", predict=predict_fusion, mask=mask)
+        # loss = 0.25*loss_global+0.25*loss_local+0.25*loss_fusion_alpha+0.25*loss_fusion_comp
+        loss = 0.3*loss_global+0.3*loss_local+0.3*loss_fusion_alpha
+        if batch_idx == 0:
+            self.log_image(title="training_images", predict=predict_fusion, mask=mask)
+            self.logger.experiment.add_image("training_global", torchvision.utils.make_grid(predict_global), self.current_epoch)
+            self.log_image(title="training_local", predict=predict_local, mask=mask)
 
         return {
             "loss": loss,
@@ -62,11 +66,22 @@ class GFM(LightningWrapper):
 
     def predict_step(self, batch, batch_idx):
         with torch.no_grad():
-            image, mask, trimap, fg, bg = batch
+            torch.cuda.empty_cache()
+            image, mask, trimap, fg, bg, h, w = batch
 
+            self.starter.record()
             predict_global, predict_local, predict_fusion = self(image)
+            self.ender.record()
+            # wait for gpu sync
+            torch.cuda.synchronize()
+            inference_time = self.starter.elapsed_time(self.ender)
+            resize = torchvision.transforms.Resize((h,w))
 
-            return predict_fusion
+            image = resize(image)
+            predict_fusion = resize(predict_fusion)
+            mask = resize(mask)
+
+            return self.l1loss(predict=predict_fusion, mask=mask),  self.l2loss(predict=predict_fusion, mask=mask), inference_time*1e-3, image, predict_fusion, mask
 
 def collaborative_matting(rosta, glance_sigmoid, focus_sigmoid):
 	if rosta =='TT':

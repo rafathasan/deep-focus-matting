@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from networks.Wrapper import LightningWrapper
-
+import torchvision
 
 class UNet(LightningWrapper):
     def __init__(
@@ -48,10 +48,23 @@ class UNet(LightningWrapper):
 
     def predict_step(self, batch, batch_idx):
         with torch.no_grad():
-            image, mask, trimap, fg, bg = batch
-            predict = torch.sigmoid(self(image))
+            image, mask, trimap, fg, bg, h, w = batch
 
-            return predict
+            torch.cuda.empty_cache()
+
+            self.starter.record()
+            predict = torch.sigmoid(self(image))
+            self.ender.record()
+            # wait for gpu sync
+            torch.cuda.synchronize()
+            inference_time = self.starter.elapsed_time(self.ender)
+            resize = torchvision.transforms.Resize((h,w))
+
+            image = resize(image)
+            predict = resize(predict)
+            mask = resize(mask)
+
+            return self.l1loss(predict=predict, mask=mask),  self.l2loss(predict=predict, mask=mask), inference_time*1e-3, image, predict, mask
 
 class _DoubleConv(pytorch_lightning.LightningModule):
     def __init__(self, in_channels, out_channels):

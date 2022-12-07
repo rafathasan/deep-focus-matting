@@ -80,7 +80,7 @@ class Data(Data_):
         return df
 
 if __name__== "__main__":
-    data = Data()
+    data = Data(dataset_name="AMD")
     data.load()
     l = data.dataframe()
     print(l)

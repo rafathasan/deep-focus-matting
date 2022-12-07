@@ -79,6 +79,8 @@ class MODNet(LightningWrapper):
         if batch_idx == 0:
             self.log_image(title="training_images", predict=pred_matte, mask=mask)
             self.logger.experiment.add_image("training_global",  torchvision.utils.make_grid(F.interpolate(pred_semantic, scale_factor=16, mode='bilinear', align_corners=False)), self.current_epoch)
+            self.logger.experiment.add_image("pred_boundary_detail",  torchvision.utils.make_grid(pred_boundary_detail), self.current_epoch)
+            self.logger.experiment.add_image("pred_boundary_matte",  torchvision.utils.make_grid(pred_boundary_matte), self.current_epoch)
             self.log_image(title="training_local", predict=pred_detail, mask=mask)
 
         return {
@@ -142,16 +144,23 @@ class MODNet(LightningWrapper):
 
     def predict_step(self, batch, batch_idx):
         with torch.no_grad():
-            image, mask, trimap, fg, bg = batch
+            torch.cuda.empty_cache()
+            image, mask, trimap, fg, bg, h, w = batch
             image = image/255
-            mask = mask/255
-            trimap = trimap/255
-            fg = fg/255
-            bg = bg/255
 
+            self.starter.record()
             pred_semantic, pred_detail, pred_matte = self(image)
+            self.ender.record()
+            # wait for gpu sync
+            torch.cuda.synchronize()
+            inference_time = self.starter.elapsed_time(self.ender)
+            resize = torchvision.transforms.Resize((h,w))
 
-            return pred_matte
+            image = resize(image)
+            pred_matte = resize(pred_matte)
+            mask = resize(mask)
+
+            return self.l1loss(predict=pred_matte, mask=mask),  self.l2loss(predict=pred_matte, mask=mask), inference_time*1e-3, image*255, pred_matte, mask
 
 
 #------------------------------------------------------------------------------

@@ -79,13 +79,9 @@ class MattingDataset(Dataset):
     def __getitem__(self, index):
         image_path = self.annotations_df.iloc[index, 0]
         mask_path = self.annotations_df.iloc[index, 1]
-        trimap_path = self.annotations_df.iloc[index, 2]
-
-
+        
         image_b = Image.open(image_path)
         mask_b = Image.open(mask_path).convert("L")
-        trimap_b = Image.open(trimap_path).convert("L")
-
 
         w, h = image_b.size
 
@@ -107,9 +103,16 @@ class MattingDataset(Dataset):
         },
     )
 
-        image = numpy.array(image_b).astype(numpy.float32)
+        image = numpy.array(image_b).astype(numpy.float32)[:,:,:3]
         mask = numpy.array(mask_b).astype(numpy.float32)
-        trimap = numpy.array(trimap_b).astype(numpy.float32)
+        
+
+        try:
+            trimap_path = self.annotations_df.iloc[index, 2]
+            trimap_b = Image.open(trimap_path).convert("L")
+            trimap = numpy.array(trimap_b).astype(numpy.float32)
+        except Exception as e:
+            trimap = gen_trimap_with_dilate(mask, 16)
 
         try:
             fg_path = self.annotations_df.iloc[index, 3]
@@ -129,4 +132,4 @@ class MattingDataset(Dataset):
         fg = transformed["fg"]
         bg = transformed["bg"]
         
-        return image, mask, trimap, fg, bg
+        return image, mask, trimap, fg, bg, h, w

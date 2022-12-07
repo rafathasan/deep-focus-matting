@@ -46,6 +46,7 @@ class LightningWrapper(pytorch_lightning.LightningModule, ABC):
     def __init__(self, settings):
         super(LightningWrapper, self).__init__()
         self.settings = settings
+        self.starter, self.ender = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
     
     def l1loss(self, predict, mask):
         return F.l1_loss(predict, mask/255)
@@ -54,7 +55,7 @@ class LightningWrapper(pytorch_lightning.LightningModule, ABC):
         return F.mse_loss(predict, mask/255)
 
     def log_image(self, title, predict, mask):
-        grid = torchvision.utils.make_grid(torch.cat((predict, mask/255), 2))
+        grid = torchvision.utils.make_grid(torch.cat((predict, mask/255), 2), padding=0)
 
         self.logger.experiment.add_image(title, grid, self.current_epoch)
 

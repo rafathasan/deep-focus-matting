@@ -148,11 +148,11 @@ if __name__ == "__main__":
 
     trainer = Trainer(
         logger=tensorboard_logger,
-        # gpus=torch.cuda.device_count(),
-        # devices=torch.cuda.device_count(),
+        gpus=1,#torch.cuda.device_count(),
+        # gpus=1,
         # accelerator="gpu",
         # strategy=DDPPlugin(find_unused_parameters=False),
-        strategy=DDPPlugin(),
+        # strategy=DDPPlugin(),
         # callbacks=callbacks,
         max_epochs=args.epochs,
         # auto_lr_find=True,

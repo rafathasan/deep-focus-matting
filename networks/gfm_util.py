@@ -284,7 +284,7 @@ def get_alpha_loss_whole_img(predict, alpha):
 	alpha_f = alpha / 255.
 	alpha_f = alpha_f.cuda()
 	diff = predict - alpha_f
-	alpha_loss = torch.sqrt(diff ** 2 + 1e-12)
+	alpha_loss = torch.sqrt(diff ** 2 + 1e-12) # 1e-12
 	alpha_loss = alpha_loss.sum()/(weighted.sum())
 	return alpha_loss
 

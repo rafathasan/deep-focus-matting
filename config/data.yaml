@@ -26,3 +26,17 @@ data:
       - trimap_cropped
       - fg_cropped
       - bg_cropped
+  PPM-100:
+    url: no_url
+    checksum: 0c8248b31eb885e6605402d4f86f93af
+    filename: PPM-100.zip
+    dir:
+      - image
+      - matte
+  test:
+    url: no_url
+    checksum: 0c8248b31eb885e6605402d4f86f93af
+    filename: PPM-100.zip
+    dir:
+      - images
+      - masks

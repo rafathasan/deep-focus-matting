@@ -11,7 +11,7 @@ from utils.data import Data
 from sklearn.model_selection import train_test_split
 
 def split_dataset(df):
-    return numpy.split(df.sample(frac=1, random_state=42), [int(.7*len(df)), int(.9*len(df))])
+    return numpy.split(df.sample(frac=1, random_state=42), [int(0*len(df)), int(1*len(df))])
 
 class MattingDataModule(pytorch_lightning.LightningDataModule):
     def __init__(
